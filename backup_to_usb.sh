@@ -19,12 +19,10 @@ mkdir -p "$BACKUP_ROOT/vaultwarden"
 cp -r ~/vaultwarden/data "$BACKUP_ROOT/vaultwarden/"
 
 echo "Backing up Unbound config..."
-mkdir -p "$BACKUP_ROOT/unbound"
-sudo cp -r /etc/unbound/* "$BACKUP_ROOT/"
+sudo cp -r /etc/unbound "$BACKUP_ROOT/"
 
 echo "Backing up PiVPN (WireGuard) config..."
-mkdir -p "$BACKUP_ROOT/wireguard"
-sudo cp -r /etc/wireguard/* "$BACKUP_ROOT/"
+sudo cp -r /etc/wireguard "$BACKUP_ROOT/"
 
 echo "Backing up PiVPN DNS config..."
 mkdir -p "$BACKUP_ROOT/dnsmasq"
@@ -36,4 +34,3 @@ cp ~/configs/*.conf "$BACKUP_ROOT/vpn_users/"
 
 echo "Backup complete!"
 echo "All data saved to: $BACKUP_ROOT"
-
