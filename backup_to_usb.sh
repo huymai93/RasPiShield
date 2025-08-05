@@ -34,3 +34,16 @@ cp ~/configs/*.conf "$BACKUP_ROOT/vpn_users/"
 
 echo "Backup complete!"
 echo "All data saved to: $BACKUP_ROOT"
+
+echo "Compressing backup..."
+cd "$USB_PATH"
+tar -czf "raspishield_backup_$BACKUP_DATE.tar.gz" "raspishield_backup_$BACKUP_DATE"
+
+echo "Encrypting backup archive..."
+gpg --symmetric --cipher-algo AES256 "raspishield_backup_$BACKUP_DATE.tar.gz"
+
+echo "Cleaning up unencrypted files..."
+rm -rf "raspishield_backup_$BACKUP_DATE" "raspishield_backup_$BACKUP_DATE.tar.gz"
+
+echo "Encrypted backup complete!"
+echo "Saved to: $USB_PATH/raspishield_backup_$BACKUP_DATE.tar.gz.gpg"
