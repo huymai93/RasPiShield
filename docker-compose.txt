@@ -10,7 +10,5 @@ services:
       - "8000:8000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - portainer_data:/data
+      - /home/pishield/portainer/data:/data
 
-volumes:
-  portainer_data:
