@@ -33,3 +33,11 @@
 - Ennio Cardozo Rivera
 - Lemuel Hernandez Rodriguez
 - Elizabeth Oghenefejiro Ovueni
+
+## References
+https://www.duckdns.org/login-github?code=29ef99eacc8803677b26&state=uhoibougyohouhpyh87yy
+https://nginxproxymanager.com/guide/#quick-setup
+https://github.com/dani-garcia/vaultwarden
+https://www.pivpn.io/
+https://github.com/pi-hole/pi-hole?tab=readme-ov-file
+https://docs.pi-hole.net/guides/dns/unbound/
