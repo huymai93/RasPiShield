@@ -37,13 +37,14 @@
 ## Youtube Channel
 https://www.youtube.com/@raspishield
 
-## Our first video
-
-[
-](https://youtu.be/QS35K98yOpM?si=gExkNfHmbQpa1UIO)
+## Our First Video
+https://youtu.be/QS35K98yOpM?si=gExkNfHmbQpa1UIO
 
 ## Contact Information
 Gmail: raspishield@gmail.com
+
+## Location
+Calgary, AB, Canada
 
 ## References
 https://www.duckdns.org/login-github?code=29ef99eacc8803677b26&state=uhoibougyohouhpyh87yy
