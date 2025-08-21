@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+# -----------------------------------------------------------------------------
+# RasPi Shield - Encrypted Essentials Backup
+# -----------------------------------------------------------------------------
+# Purpose:
+#   Create a minimal, encrypted backup archive for a Raspberry Pi self-hosted
+#   password manager stack (Vaultwarden + NPM + PiVPN/WireGuard + Unbound/Pi-hole
+#   + compose files). Produces a single .tar.gz.gpg file and removes plaintext.
+#
+# Safe to commit to GitHub:
+#   - No personal usernames, hostnames, or secrets are embedded.
+#   - Passphrase is NOT hard-coded here (use a passphrase file or env var).
+#
+# Encryption:
+#   - GPG symmetric AES-256, non-interactive (no prompts).
+#   - Preferred: passphrase stored in a root-only file (0600).
+#   - Alternate: passphrase supplied via environment variable.
+#
+# Requirements on the host:
+#   - gpg (encryption)
+#   - rsync, tar (packaging)
+#   - sqlite3 (optional; enables consistent Vaultwarden DB snapshot)
+#
+# Restore (high-level):
+#   gpg -o /tmp/restore.tar.gz -d /path/to/rps-backup-*.tar.gz.gpg
+#   sudo tar -C / -xzf /tmp/restore.tar.gz && rm -f /tmp/restore.tar.gz
+#   # Optional (if db.sqlite3.backup exists):
+#   cd /home/<user>/RPS/vaultwarden/data && sqlite3 db.sqlite3 ".restore 'db.sqlite3.backup'"
+#
+# Cron example (root):
+#   15 23 * * 0,3 /home/<user>/PROJ-Capstone/backup.sh
+#
+# -----------------------------------------------------------------------------
+set -euo pipefail
+umask 077  # ensure any temporary files/dirs we create are owner-only (600/700)
+
+# ======== USER-ADJUSTABLE CONFIG (generic; safe to commit) ===================
+
+# Linux username that owns the RPS directory (no trailing slash)
+HOST_USER="${HOST_USER:-<user>}"
+
+# Where your stack files (compose/.env) live (no trailing slash)
+RPS_DIR="${RPS_DIR:-/home/${HOST_USER}/RPS}"
+
+# Mount point for the USB destination (no trailing slash)
+USB_MOUNT="${USB_MOUNT:-/media/${HOST_USER}/Lexar}"
+
+# Output folder on the USB (no trailing slash)
+BACKUP_DIR="${BACKUP_DIR:-${USB_MOUNT}/RasPiShield_backups}"
+
+# How many encrypted backups to retain
+RETENTION="${RETENTION:-10}"
+
+# Optional: path to a root-only passphrase file (0600). If present, it is used.
+# Otherwise, GPG_PASSPHRASE env var is used. If neither is present, the script exits.
+PASSPHRASE_FILE="${PASSPHRASE_FILE:-/root/.rpsb_pass}"
+
+# ======== INTERNALS (do not change for normal use) ===========================
+TIMESTAMP="$(date +%Y-%m-%d_%H-%M-%S)"
+STAGING="/tmp/rpsb-${TIMESTAMP}"
+ARCHIVE="${STAGING}/rps-backup-${TIMESTAMP}.tar.gz"
+ENCRYPTED="${BACKUP_DIR}/rps-backup-${TIMESTAMP}.tar.gz.gpg"
+
+# ======== HELPERS ============================================================
+ensure_dir() { mkdir -p "$1"; }
+need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: '$1' not installed"; exit 1; }; }
+
+# ======== PRECHECKS ==========================================================
+need gpg
+need rsync
+need tar
+
+# Verify USB is mounted
+if ! mountpoint -q "${USB_MOUNT}"; then
+  echo "ERROR: USB not mounted at ${USB_MOUNT}"
+  exit 1
+fi
+
+# Determine encryption method
+GPG_ARGS=(--batch --yes --pinentry-mode loopback -c --cipher-algo AES256)
+if [ -f "${PASSPHRASE_FILE}" ]; then
+  # Use passphrase file (recommended for unattended cron)
+  GPG_ARGS+=(--passphrase-file "${PASSPHRASE_FILE}")
+elif [ -n "${GPG_PASSPHRASE:-}" ]; then
+  # Use passphrase from environment variable (only if you accept this risk)
+  GPG_ARGS+=(--passphrase "${GPG_PASSPHRASE}")
+else
+  echo "ERROR: No passphrase source. Provide PASSPHRASE_FILE=${PASSPHRASE_FILE} (0600) or export GPG_PASSPHRASE."
+  exit 1
+fi
+
+# Prepare folders
+ensure_dir "${BACKUP_DIR}"
+ensure_dir "${STAGING}"
+
+echo "== Encrypted essentials backup @ ${TIMESTAMP} =="
+
+# ======== 1) Vaultwarden (data + optional SQLite snapshot) ===================
+VW_DATA="${RPS_DIR}/vaultwarden/data"
+if [ -d "${VW_DATA}" ]; then
+  echo "-- Vaultwarden: copying data"
+  ensure_dir "${STAGING}/vaultwarden/data"
+  rsync -a "${VW_DATA}/" "${STAGING}/vaultwarden/data/"
+
+  if command -v sqlite3 >/dev/null 2>&1 && [ -f "${VW_DATA}/db.sqlite3" ]; then
+    echo "-- Vaultwarden: creating consistent SQLite snapshot"
+    ensure_dir "${STAGING}/vaultwarden"
+    sqlite3 "${VW_DATA}/db.sqlite3" ".backup '${STAGING}/vaultwarden/db.sqlite3.backup'"
+  else
+    echo "-- Vaultwarden: sqlite3 not available or db.sqlite3 missing; snapshot skipped"
+  fi
+else
+  echo "-- Vaultwarden: skipped (not found at ${VW_DATA})"
+fi
+
+# ======== 2) Nginx Proxy Manager (data + Let's Encrypt) =====================
+NPM_DATA="${RPS_DIR}/npm/data"
+NPM_LE="${RPS_DIR}/npm/letsencrypt"
+if [ -d "${NPM_DATA}" ] || [ -d "${NPM_LE}" ]; then
+  echo "-- NPM: copying"
+  if [ -d "${NPM_DATA}" ]; then
+    ensure_dir "${STAGING}/npm/data"
+    rsync -a "${NPM_DATA}/" "${STAGING}/npm/data/"
+  fi
+  if [ -d "${NPM_LE}" ]; then
+    ensure_dir "${STAGING}/npm/letsencrypt"
+    rsync -a "${NPM_LE}/" "${STAGING}/npm/letsencrypt/"
+  fi
+else
+  echo "-- NPM: skipped (no NPM data/certs found)"
+fi
+
+# ======== 3) PiVPN / WireGuard (users, keys, server config) =================
+if [ -d /etc/pivpn ] || [ -d /etc/wireguard ]; then
+  echo "-- PiVPN/WireGuard: copying"
+  if [ -d /etc/pivpn ]; then
+    ensure_dir "${STAGING}/etc/pivpn"
+    rsync -a /etc/pivpn/ "${STAGING}/etc/pivpn/"
+  fi
+  if [ -d /etc/wireguard ]; then
+    ensure_dir "${STAGING}/etc/wireguard"
+    rsync -a /etc/wireguard/ "${STAGING}/etc/wireguard/"
+  fi
+else
+  echo "-- PiVPN/WireGuard: skipped (not found)"
+fi
+
+# ======== 4) Unbound & Pi-hole configs (host-based) =========================
+if [ -d /etc/unbound ]; then
+  echo "-- Unbound: copying /etc/unbound"
+  ensure_dir "${STAGING}/etc/unbound"
+  rsync -a /etc/unbound/ "${STAGING}/etc/unbound/"
+fi
+if [ -d /var/lib/unbound ]; then
+  echo "-- Unbound: copying /var/lib/unbound (trust anchors)"
+  ensure_dir "${STAGING}/var/lib/unbound"
+  rsync -a /var/lib/unbound/ "${STAGING}/var/lib/unbound/"
+fi
+if [ -d /etc/dnsmasq.d ]; then
+  echo "-- dnsmasq.d: copying /etc/dnsmasq.d"
+  ensure_dir "${STAGING}/etc/dnsmasq.d"
+  rsync -a /etc/dnsmasq.d/ "${STAGING}/etc/dnsmasq.d/"
+fi
+
+# ======== 5) RPS stack files (compose, .env, stack directories) =============
+if [ -d "${RPS_DIR}" ]; then
+  echo "-- RPS: copying stack files (${RPS_DIR})"
+  ensure_dir "${STAGING}/RPS"
+  rsync -a \
+    --exclude '**/node_modules/' \
+    --exclude '**/__pycache__/' \
+    --exclude '**/.git/' \
+    "${RPS_DIR}/" "${STAGING}/RPS/"
+else
+  echo "-- RPS: skipped (not found at ${RPS_DIR})"
+fi
+
+# ======== Package (tar.gz) ===================================================
+echo "== Creating archive =="
+# Avoid aborting on benign tar warnings (e.g., file changed while reading)
+tar --warning=no-file-changed --ignore-failed-read \
+    -C "${STAGING}" -czf "${ARCHIVE}" .
+
+# ======== Encrypt (GPG AES-256, no prompt) ==================================
+echo "== Encrypting archive =="
+gpg "${GPG_ARGS[@]}" -o "${ENCRYPTED}" "${ARCHIVE}"
+
+# ======== Clean plaintext ====================================================
+echo "== Cleaning plaintext staging and tar =="
+rm -f "${ARCHIVE}"
+rm -rf "${STAGING}"
+
+# ======== Retention (keep last N encrypted backups) ==========================
+echo "== Retention: keep last ${RETENTION} backups =="
+cd "${BACKUP_DIR}"
+ls -1t rps-backup-*.tar.gz.gpg | tail -n +$((RETENTION+1)) | xargs -r -I {} bash -lc 'echo "Deleting old backup: {}"; rm -f "{}"'
+
+echo "== DONE: ${ENCRYPTED} =="
