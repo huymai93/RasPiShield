@@ -33,3 +33,28 @@
 - Ennio Cardozo Rivera
 - Lemuel Hernandez Rodriguez
 - Elizabeth Oghenefejiro Ovueni
+
+## Youtube Channel
+https://www.youtube.com/@raspishield
+
+## Our First Video
+https://youtu.be/QS35K98yOpM?si=gExkNfHmbQpa1UIO
+
+## Contact Information
+Gmail: raspishield@gmail.com
+
+## Location
+Calgary, AB, Canada
+
+## References
+https://www.duckdns.org/login-github?code=29ef99eacc8803677b26&state=uhoibougyohouhpyh87yy
+
+https://nginxproxymanager.com/guide/#quick-setup
+
+https://github.com/dani-garcia/vaultwarden
+
+https://www.pivpn.io/
+
+https://github.com/pi-hole/pi-hole?tab=readme-ov-file
+
+https://docs.pi-hole.net/guides/dns/unbound/
