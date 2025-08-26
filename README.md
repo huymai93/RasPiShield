@@ -28,6 +28,7 @@
 ## Authors
 
 - Nhat Huy Mai Phan (Team Lead)
+- Tiffany Phuong Uyen Le
 - Tyas Marion
 - Ennio Cardozo Rivera
 - Lemuel Hernandez Rodriguez
