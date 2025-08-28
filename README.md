@@ -28,7 +28,7 @@
 ## Authors
 
 - Nhat Huy Mai Phan (Team Lead)
-- Tiffany Phuong Uyen Le
+- Tiffany Phuong Uyen Le (Communication Manager)
 - Tyas Marion
 - Ennio Cardozo Rivera
 - Lemuel Hernandez Rodriguez
